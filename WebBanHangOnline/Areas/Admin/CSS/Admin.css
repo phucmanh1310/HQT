@@ -1,0 +1,224 @@
+﻿
+/* Cải thiện tổng thể container */
+.single_product_container {
+    padding: 30px 0;
+    background-color: #f9f9f9;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Breadcrumbs */
+.breadcrumbs ul li a {
+    color: #007bff;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+    .breadcrumbs ul li a:hover {
+        color: #0056b3;
+    }
+
+.breadcrumbs ul li.active a {
+    color: #6c757d;
+    pointer-events: none;
+}
+
+/* Hình ảnh sản phẩm */
+.single_product_image_background {
+    width: 100%;
+    height: 400px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    transition: transform 0.3s ease;
+}
+
+    .single_product_image_background:hover {
+        transform: scale(1.02);
+    }
+
+.single_product_thumbnails img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: border 0.3s ease;
+}
+
+    .single_product_thumbnails img.active {
+        border: 2px solid #007bff;
+    }
+
+/* Tiêu đề và mô tả */
+.product_details_title h2 {
+    font-size: 2rem;
+    color: #343a40;
+    margin-bottom: 15px;
+    font-weight: 700;
+}
+
+.product_details_title p {
+    font-size: 1rem;
+    color: #6c757d;
+    line-height: 1.6;
+}
+
+/* Giá sản phẩm */
+.original_price {
+    font-size: 1.2rem;
+    color: #6c757d;
+    text-decoration: line-through;
+    margin-right: 10px;
+}
+
+.product_price {
+    font-size: 1.5rem;
+    color: #dc3545;
+    font-weight: 700;
+}
+
+/* Đánh giá sao */
+.star_rating {
+    padding: 0;
+    margin: 10px 0;
+}
+
+    .star_rating li {
+        display: inline-block;
+        color: #ffc107;
+        font-size: 1.2rem;
+    }
+
+/* Số lượng và nút Add to Cart */
+.quantity {
+    gap: 15px;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.quantity_selector {
+    display: flex;
+    align-items: center;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+    .quantity_selector span {
+        padding: 8px 15px;
+        font-size: 1rem;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .quantity_selector .minus, .quantity_selector .plus {
+        background-color: #e9ecef;
+        transition: background-color 0.3s ease;
+    }
+
+        .quantity_selector .minus:hover, .quantity_selector .plus:hover {
+            background-color: #dee2e6;
+        }
+
+    .quantity_selector #quantity_value_@Model.Id {
+        border-left: 1px solid #dee2e6;
+        border-right: 1px solid #dee2e6;
+        background-color: #fff;
+    }
+
+/* Box số lượng còn lại */
+.stock-info {
+    background-color: #e7f3fe;
+    border: 1px solid #b8daff;
+    border-radius: 5px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: #0c5460;
+    display: inline-block;
+    margin-top: 5px;
+    transition: all 0.3s ease;
+}
+
+    .stock-info.low-stock {
+        background-color: #fff3cd;
+        border-color: #ffecb5;
+        color: #856404;
+    }
+
+    .stock-info.out-of-stock {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+
+/* Nút Add to Cart */
+.add_to_cart_button .btnAddToCart {
+    background-color: #28a745;
+    border: none;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 1rem;
+    border-radius: 5px;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+    .add_to_cart_button .btnAddToCart:hover {
+        background-color: #218838;
+        transform: translateY(-2px);
+    }
+
+    .add_to_cart_button .btnAddToCart:disabled {
+        background-color: #ccc !important;
+        cursor: not-allowed;
+        opacity: 0.6;
+        transform: none;
+    }
+
+/* Tabs */
+.tabs_container ul {
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 20px;
+}
+
+    .tabs_container ul li {
+        padding: 10px 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .tabs_container ul li.active {
+            border-bottom: 2px solid #007bff;
+            color: #007bff;
+            font-weight: 600;
+        }
+
+.tab_container {
+    display: none;
+}
+
+    .tab_container.active {
+        display: block;
+    }
+
+/* Responsive */
+@media (max-width: 767px) {
+    .single_product_image_background {
+        height: 300px;
+    }
+
+    .product_details_title h2 {
+        font-size: 1.5rem;
+    }
+
+    .quantity {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .quantity_selector {
+        margin-bottom: 10px;
+    }
+}

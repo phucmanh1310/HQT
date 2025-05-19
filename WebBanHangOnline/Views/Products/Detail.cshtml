@@ -81,17 +81,18 @@
                     <div class="quantity d-flex flex-column flex-sm-row align-items-sm-center">
                         <span>Quantity:</span>
                         <div class="quantity_selector">
-                            <span class="minus"><i class="fa fa-minus" aria-hidden="true"></i></span>
+                            <span class="minus"><i class="fa fa-minus"></i></span>
                             <span id="quantity_value_@Model.Id">1</span>
-                            <span class="plus"><i class="fa fa-plus" aria-hidden="true"></i></span>
+                            <span class="plus"><i class="fa fa-plus"></i></span>
                         </div>
                         <div>
                             <p>Số lượng còn lại: <span id="stock_quantity_@Model.Id">@Model.Quantity</span></p>
                         </div>
                         <div class="red_button add_to_cart_button">
-                            <a href="#" class="btnAddToCart" data-id="@Model.Id" data-quantity="1">add to cart</a>
+                            <button type="button" class="btnAddToCart" data-id="@Model.Id" data-quantity="1">
+                                Add to Cart
+                            </button>
                         </div>
-                        <div class="product_favorite d-flex flex-column align-items-center justify-content-center"></div>
                     </div>
                 </div>
             </div>
@@ -142,67 +143,76 @@
 @section scripts {
     <script src="~/Scripts/jquery-3.6.0.min.js"></script>
     <script src="~/Scripts/jquery.signalR-2.4.3.min.js"></script>
-    <script src="~/Content/assets/js/single_custom.js"></script>
+    <script src="~/signalr/hubs"></script>
     <script>
-        $(document).ready(function () {
-            var connection = $.hubConnection();
-            var hub = connection.createHubProxy('stockHub');
+    $(function () {
+        var productId = @Model.Id;
+        var stockQuantity = @Model.Quantity;
+        var btn = $('.btnAddToCart[data-id="' + productId + '"]');
+        var qtySpan = $('#quantity_value_' + productId);
+        var busy = false; // prevent double-click
 
-            hub.on('ReceiveStockUpdate', function (productId, quantity) {
-                var stockElement = $('#stock_quantity_' + productId);
-                var buttonElement = $('.btnAddToCart[data-id="' + productId + '"]');
-                stockElement.text(quantity);
-                if (quantity <= 0) {
-                    buttonElement.prop('disabled', true).addClass('disabled');
-                    alert('Sản phẩm đã hết hàng!');
-                } else {
-                    buttonElement.prop('disabled', false).removeClass('disabled');
-                }
-            });
+        // Disable nếu đã hết hàng
+        if (stockQuantity <= 0) {
+            btn.prop('disabled', true).addClass('disabled');
+            alert('Sản phẩm đã hết hàng!');
+        }
 
-            connection.start().done(function () {
-                console.log('Connected to StockHub');
-            }).fail(function (e) {
-                console.log('Error connecting: ' + e);
-            });
-
-            $('.btnAddToCart').click(function (e) {
-                e.preventDefault();
-                var productId = $(this).data('id');
-                var quantity = parseInt($('#quantity_value_' + productId).text());
-                $.post('/ShoppingCart/AddToCart', { id: productId, quantity: quantity }, function (response) {
-                    if (response.Success) {
-                        alert(response.msg);
-                        // Cập nhật số lượng tồn kho trên giao diện (nếu cần)
-                        $('#stock_quantity_' + productId).text(response.stockQuantity || $('#stock_quantity_' + productId).text());
-                    } else {
-                        alert(response.msg);
-                    }
-                });
-            });
-
-            $('.quantity_selector .plus').click(function () {
-                var productId = $(this).closest('.quantity').find('.btnAddToCart').data('id');
-                var quantityElement = $('#quantity_value_' + productId);
-                var quantity = parseInt(quantityElement.text());
-                var stockQuantity = parseInt($('#stock_quantity_' + productId).text());
-                if (quantity < stockQuantity) {
-                    quantityElement.text(quantity + 1);
-                    $('.btnAddToCart[data-id="' + productId + '"]').data('quantity', quantity + 1);
-                } else {
-                    alert('Số lượng vượt quá tồn kho!');
-                }
-            });
-
-            $('.quantity_selector .minus').click(function () {
-                var productId = $(this).closest('.quantity').find('.btnAddToCart').data('id');
-                var quantityElement = $('#quantity_value_' + productId);
-                var quantity = parseInt(quantityElement.text());
-                if (quantity > 1) {
-                    quantityElement.text(quantity - 1);
-                    $('.btnAddToCart[data-id="' + productId + '"]').data('quantity', quantity - 1);
-                }
-            });
+        // Thiết lập SignalR để push cập nhật kho
+        var conn = $.hubConnection();
+        var hub  = conn.createHubProxy('stockHub');
+        hub.on('ReceiveStockUpdate', function(id, qty) {
+            if (id === productId) {
+                stockQuantity = qty;
+                $('#stock_quantity_' + id).text(qty);
+                btn.prop('disabled', qty <= 0).toggleClass('disabled', qty <= 0);
+            }
         });
+        conn.start();
+
+        // Plus / Minus control
+        $('.quantity_selector')
+          .off('click', '.plus').on('click', '.plus', function() {
+            var q = parseInt(qtySpan.text(), 10);
+            if (q < stockQuantity) {
+                qtySpan.text(q + 1);
+                btn.data('quantity', q + 1);
+            } else alert('Số lượng vượt quá tồn kho!');
+          })
+          .off('click', '.minus').on('click', '.minus', function() {
+            var q = parseInt(qtySpan.text(), 10);
+            if (q > 1) {
+                qtySpan.text(q - 1);
+                btn.data('quantity', q - 1);
+            }
+          });
+
+        // Xử lý AddToCart, ngăn double-click
+        btn.off('click').on('click', function(e) {
+            e.preventDefault();
+            if (busy || btn.prop('disabled')) return;
+            busy = true;
+
+            var qty = parseInt(btn.data('quantity'), 10) || 1;
+            if (qty > stockQuantity) {
+                alert('Số lượng vượt quá tồn kho!');
+                busy = false;
+                return;
+            }
+
+            $.post('/ShoppingCart/AddToCart', { id: productId, quantity: qty })
+             .done(function(res) {
+                alert(res.msg);
+             })
+             .fail(function() {
+                alert('Lỗi hệ thống.');
+             })
+             .always(function() {
+                busy = false;
+             });
+        });
+    });
     </script>
+}
+
 }
