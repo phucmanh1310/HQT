@@ -48,6 +48,7 @@ namespace WebBanHangOnline.Models.EF
         public bool IsHot { get; set; }
         public bool IsActive { get; set; }
         public int ProductCategoryId { get; set; }
+
         [StringLength(250)]
         public string SeoTitle { get; set; }
         [StringLength(500)]

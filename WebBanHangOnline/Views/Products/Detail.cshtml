@@ -8,10 +8,14 @@
 <link rel="stylesheet" type="text/css" href="~/Content/assets/styles/single_responsive.css">
 @if (Model != null)
 {
+
+
     <div class="container single_product_container">
         <div class="row">
             <div class="col">
+
                 <!-- Breadcrumbs -->
+
                 <div class="breadcrumbs d-flex flex-row align-items-center">
                     <ul>
                         <li><a href="/">Home</a></li>
@@ -19,6 +23,7 @@
                         <li class="active"><a href="#"><i class="fa fa-angle-right" aria-hidden="true"></i>@Model.Title</a></li>
                     </ul>
                 </div>
+
             </div>
         </div>
 
@@ -53,6 +58,7 @@
                         </div>
                     </div>
                 }
+
             </div>
             <div class="col-lg-5">
                 <div class="product_details">
@@ -81,31 +87,28 @@
                     <div class="quantity d-flex flex-column flex-sm-row align-items-sm-center">
                         <span>Quantity:</span>
                         <div class="quantity_selector">
-                            <span class="minus"><i class="fa fa-minus"></i></span>
-                            <span id="quantity_value_@Model.Id">1</span>
-                            <span class="plus"><i class="fa fa-plus"></i></span>
+                            <span class="minus"><i class="fa fa-minus" aria-hidden="true"></i></span>
+                            <span id="quantity_value">1</span>
+                            <span class="plus"><i class="fa fa-plus" aria-hidden="true"></i></span>
                         </div>
-                        <div>
-                            <p>Số lượng còn lại: <span id="stock_quantity_@Model.Id">@Model.Quantity</span></p>
-                        </div>
-                        <div class="red_button add_to_cart_button">
-                            <button type="button" class="btnAddToCart" data-id="@Model.Id" data-quantity="1">
-                                Add to Cart
-                            </button>
-                        </div>
+                        <div class="red_button add_to_cart_button"><a href="#" class="btnAddToCart" data-id="@Model.Id">add to cart</a></div>
+                        <div class="product_favorite d-flex flex-column align-items-center justify-content-center"></div>
                     </div>
                 </div>
             </div>
         </div>
+
     </div>
 
     <div class="tabs_section_container">
+
         <div class="container">
             <div class="row">
                 <div class="col">
                     <div class="tabs_container">
                         <ul class="tabs d-flex flex-sm-row flex-column align-items-left align-items-md-center justify-content-center">
                             <li class="tab active" data-active-tab="tab_1"><span>Description</span></li>
+                            @*<li class="tab" data-active-tab="tab_2"><span>Additional Information</span></li>*@
                             <li class="tab" data-active-tab="tab_3"><span>Reviews (@ViewBag.CountReview)</span></li>
                         </ul>
                     </div>
@@ -113,106 +116,45 @@
             </div>
             <div class="row">
                 <div class="col">
+
                     <!-- Tab Description -->
+
                     <div id="tab_1" class="tab_container active">
                         <div class="row">
                             @Html.Raw(Model.Detail)
                         </div>
                     </div>
 
+                    <!-- Tab Additional Info -->
                     <!-- Tab Reviews -->
+
                     <div id="tab_3" class="tab_container">
                         <div class="row">
+
                             <!-- User Reviews -->
+
                             <div class="col-lg-6 reviews_col">
                                 @Html.Action("_Load_Review", "Review", new { productId = Model.Id })
                             </div>
 
                             <!-- Add Review -->
+
                             <div class="col-lg-6 add_review_col">
+
+
                                 @Html.Action("_Review", "Review", new { productId = Model.Id })
                             </div>
+
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
+
     </div>
+
 }
-
-@section scripts {
-    <script src="~/Scripts/jquery-3.6.0.min.js"></script>
-    <script src="~/Scripts/jquery.signalR-2.4.3.min.js"></script>
-    <script src="~/signalr/hubs"></script>
-    <script>
-    $(function () {
-        var productId = @Model.Id;
-        var stockQuantity = @Model.Quantity;
-        var btn = $('.btnAddToCart[data-id="' + productId + '"]');
-        var qtySpan = $('#quantity_value_' + productId);
-        var busy = false; // prevent double-click
-
-        // Disable nếu đã hết hàng
-        if (stockQuantity <= 0) {
-            btn.prop('disabled', true).addClass('disabled');
-            alert('Sản phẩm đã hết hàng!');
-        }
-
-        // Thiết lập SignalR để push cập nhật kho
-        var conn = $.hubConnection();
-        var hub  = conn.createHubProxy('stockHub');
-        hub.on('ReceiveStockUpdate', function(id, qty) {
-            if (id === productId) {
-                stockQuantity = qty;
-                $('#stock_quantity_' + id).text(qty);
-                btn.prop('disabled', qty <= 0).toggleClass('disabled', qty <= 0);
-            }
-        });
-        conn.start();
-
-        // Plus / Minus control
-        $('.quantity_selector')
-          .off('click', '.plus').on('click', '.plus', function() {
-            var q = parseInt(qtySpan.text(), 10);
-            if (q < stockQuantity) {
-                qtySpan.text(q + 1);
-                btn.data('quantity', q + 1);
-            } else alert('Số lượng vượt quá tồn kho!');
-          })
-          .off('click', '.minus').on('click', '.minus', function() {
-            var q = parseInt(qtySpan.text(), 10);
-            if (q > 1) {
-                qtySpan.text(q - 1);
-                btn.data('quantity', q - 1);
-            }
-          });
-
-        // Xử lý AddToCart, ngăn double-click
-        btn.off('click').on('click', function(e) {
-            e.preventDefault();
-            if (busy || btn.prop('disabled')) return;
-            busy = true;
-
-            var qty = parseInt(btn.data('quantity'), 10) || 1;
-            if (qty > stockQuantity) {
-                alert('Số lượng vượt quá tồn kho!');
-                busy = false;
-                return;
-            }
-
-            $.post('/ShoppingCart/AddToCart', { id: productId, quantity: qty })
-             .done(function(res) {
-                alert(res.msg);
-             })
-             .fail(function() {
-                alert('Lỗi hệ thống.');
-             })
-             .always(function() {
-                busy = false;
-             });
-        });
-    });
-    </script>
-}
-
+@section scripts{
+    <script src="~/Content/assets/js/single_custom.js"></script>
 }

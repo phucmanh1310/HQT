@@ -1,28 +1,22 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Web;
 
 namespace WebBanHangOnline.Models
 {
     public class OrderViewModel
     {
-        [Required(ErrorMessage = "Họ và tên là bắt buộc")]
-        [StringLength(100, ErrorMessage = "Họ và tên không được vượt quá 100 ký tự")]
+        [Required(ErrorMessage = "Tên khách hàng không để trống")]
         public string CustomerName { get; set; }
-
-        [Required(ErrorMessage = "Số điện thoại là bắt buộc")]
-        [RegularExpression(@"^\d{10,11}$", ErrorMessage = "Số điện thoại không hợp lệ (10-11 số)")]
+        [Required(ErrorMessage = "Số điện thoại không để trống")]
         public string Phone { get; set; }
-
-        [Required(ErrorMessage = "Địa chỉ là bắt buộc")]
-        [StringLength(500, ErrorMessage = "Địa chỉ không được vượt quá 500 ký tự")]
+        [Required(ErrorMessage = "Địa chỉ khổng để trống")]
         public string Address { get; set; }
-
-        [Required(ErrorMessage = "Email là bắt buộc")]
-        [EmailAddress(ErrorMessage = "Email không hợp lệ")]
         public string Email { get; set; }
-
-        [Required(ErrorMessage = "Phương thức thanh toán là bắt buộc")]
+        public string CustomerId { get; set; }
         public int TypePayment { get; set; }
-
-        public int? TypePaymentVN { get; set; } // Tuỳ chọn cho VNPAY
+        public int TypePaymentVN { get; set; }
     }
 }

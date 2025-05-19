@@ -3,93 +3,93 @@ using Microsoft.AspNet.Identity.Owin;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
-using System.Data.Entity;
 using System.Linq;
 using System.Web;
 using System.Web.Mvc;
 using WebBanHangOnline.Models;
 using WebBanHangOnline.Models.EF;
 using WebBanHangOnline.Models.Payments;
-using Microsoft.AspNet.SignalR;
-using WebBanHangOnline.Hubs;
 
 namespace WebBanHangOnline.Controllers
 {
-    [System.Web.Mvc.Authorize]
+    [Authorize]
     public class ShoppingCartController : Controller
     {
         private ApplicationDbContext db = new ApplicationDbContext();
-        private readonly IHubContext _hubContext;
 
         private ApplicationSignInManager _signInManager;
         private ApplicationUserManager _userManager;
 
         public ShoppingCartController()
         {
-            _hubContext = GlobalHost.ConnectionManager.GetHubContext<StockHub>();
         }
 
         public ShoppingCartController(ApplicationUserManager userManager, ApplicationSignInManager signInManager)
         {
             UserManager = userManager;
             SignInManager = signInManager;
-            _hubContext = GlobalHost.ConnectionManager.GetHubContext<StockHub>();
         }
 
         public ApplicationSignInManager SignInManager
         {
-            get { return _signInManager ?? HttpContext.GetOwinContext().Get<ApplicationSignInManager>(); }
-            private set { _signInManager = value; }
+            get
+            {
+                return _signInManager ?? HttpContext.GetOwinContext().Get<ApplicationSignInManager>();
+            }
+            private set
+            {
+                _signInManager = value;
+            }
         }
 
         public ApplicationUserManager UserManager
         {
-            get { return _userManager ?? HttpContext.GetOwinContext().GetUserManager<ApplicationUserManager>(); }
-            private set { _userManager = value; }
-        }
-
-        // Helper method để lấy hoặc khởi tạo giỏ hàng
-        private ShoppingCart GetCart()
-        {
-            if (Session["Cart"] == null)
+            get
             {
-                Session["Cart"] = new ShoppingCart();
+                return _userManager ?? HttpContext.GetOwinContext().GetUserManager<ApplicationUserManager>();
             }
-            return (ShoppingCart)Session["Cart"];
+            private set
+            {
+                _userManager = value;
+            }
         }
-
+        // GET: ShoppingCart
         [AllowAnonymous]
         public ActionResult Index()
         {
-            var cart = GetCart();
-            if (cart.Items.Any())
+
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
+            if (cart != null && cart.Items.Any())
             {
                 ViewBag.CheckCart = cart;
             }
             return View();
         }
-
         [AllowAnonymous]
         public ActionResult VnpayReturn()
         {
             if (Request.QueryString.Count > 0)
             {
-                string vnp_HashSecret = ConfigurationManager.AppSettings["vnp_HashSecret"];
+                string vnp_HashSecret = ConfigurationManager.AppSettings["vnp_HashSecret"]; //Chuoi bi mat
                 var vnpayData = Request.QueryString;
                 VnPayLibrary vnpay = new VnPayLibrary();
 
                 foreach (string s in vnpayData)
                 {
+                    //get all querystring data
                     if (!string.IsNullOrEmpty(s) && s.StartsWith("vnp_"))
                     {
                         vnpay.AddResponseData(s, vnpayData[s]);
                     }
                 }
-
                 string orderCode = Convert.ToString(vnpay.GetResponseData("vnp_TxnRef"));
+                long vnpayTranId = Convert.ToInt64(vnpay.GetResponseData("vnp_TransactionNo"));
                 string vnp_ResponseCode = vnpay.GetResponseData("vnp_ResponseCode");
                 string vnp_TransactionStatus = vnpay.GetResponseData("vnp_TransactionStatus");
-                string vnp_SecureHash = Request.QueryString["vnp_SecureHash"];
+                String vnp_SecureHash = Request.QueryString["vnp_SecureHash"];
+                String TerminalID = Request.QueryString["vnp_TmnCode"];
+                long vnp_Amount = Convert.ToInt64(vnpay.GetResponseData("vnp_Amount")) / 100;
+                String bankCode = Request.QueryString["vnp_BankCode"];
 
                 bool checkSignature = vnpay.ValidateSignature(vnp_SecureHash, vnp_HashSecret);
                 if (checkSignature)
@@ -97,62 +97,80 @@ namespace WebBanHangOnline.Controllers
                     if (vnp_ResponseCode == "00" && vnp_TransactionStatus == "00")
                     {
                         var itemOrder = db.Orders.FirstOrDefault(x => x.Code == orderCode);
-                        if (itemOrder != null && itemOrder.Status == 1) // Chưa thanh toán
+                        if (itemOrder != null)
                         {
-                            itemOrder.Status = 2; // Đã thanh toán
-                            db.Entry(itemOrder).State = EntityState.Modified;
+                            itemOrder.Status = 2;//đã thanh toán
+                            db.Orders.Attach(itemOrder);
+                            db.Entry(itemOrder).State = System.Data.Entity.EntityState.Modified;
                             db.SaveChanges();
                         }
-                        ViewBag.InnerText = "Giao dịch được thực hiện thành công. Cảm ơn quý khách!";
+                        //Thanh toan thanh cong
+                        ViewBag.InnerText = "Giao dịch được thực hiện thành công. Cảm ơn quý khách đã sử dụng dịch vụ";
+                        //log.InfoFormat("Thanh toan thanh cong, OrderId={0}, VNPAY TranId={1}", orderId, vnpayTranId);
                     }
                     else
                     {
-                        ViewBag.InnerText = "Có lỗi xảy ra. Mã lỗi: " + vnp_ResponseCode;
+                        //Thanh toan khong thanh cong. Ma loi: vnp_ResponseCode
+                        ViewBag.InnerText = "Có lỗi xảy ra trong quá trình xử lý.Mã lỗi: " + vnp_ResponseCode;
+                        //log.InfoFormat("Thanh toan loi, OrderId={0}, VNPAY TranId={1},ResponseCode={2}", orderId, vnpayTranId, vnp_ResponseCode);
                     }
-                    ViewBag.ThanhToanThanhCong = "Số tiền thanh toán (VND): " + (Convert.ToInt64(vnpay.GetResponseData("vnp_Amount")) / 100).ToString();
+                    //displayTmnCode.InnerText = "Mã Website (Terminal ID):" + TerminalID;
+                    //displayTxnRef.InnerText = "Mã giao dịch thanh toán:" + orderId.ToString();
+                    //displayVnpayTranNo.InnerText = "Mã giao dịch tại VNPAY:" + vnpayTranId.ToString();
+                    ViewBag.ThanhToanThanhCong = "Số tiền thanh toán (VND):" + vnp_Amount.ToString();
+                    //displayBankCode.InnerText = "Ngân hàng thanh toán:" + bankCode;
                 }
             }
+            //var a = UrlPayment(0, "DH3574");
             return View();
         }
 
         [AllowAnonymous]
         public ActionResult CheckOut()
         {
-            var cart = GetCart();
-            if (cart.Items.Any())
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
+            if (cart != null && cart.Items.Any())
             {
                 ViewBag.CheckCart = cart;
             }
             return View();
         }
-
         [AllowAnonymous]
         public ActionResult CheckOutSuccess()
         {
             return View();
         }
-
         [AllowAnonymous]
         public ActionResult Partial_Item_ThanhToan()
         {
-            var cart = GetCart();
-            return PartialView(cart.Items);
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
+            if (cart != null && cart.Items.Any())
+            {
+                return PartialView(cart.Items);
+            }
+            return PartialView();
         }
-
         [AllowAnonymous]
         public ActionResult Partial_Item_Cart()
         {
-            var cart = GetCart();
-            return PartialView(cart.Items);
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
+            if (cart != null && cart.Items.Any())
+            {
+                return PartialView(cart.Items);
+            }
+            return PartialView();
         }
 
         [AllowAnonymous]
         public ActionResult ShowCount()
         {
-            var cart = GetCart();
-            return Json(new { Count = cart.Items.Count }, JsonRequestBehavior.AllowGet);
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
+            if (cart != null)
+            {
+                return Json(new { Count = cart.Items.Count }, JsonRequestBehavior.AllowGet);
+            }
+            return Json(new { Count = 0 }, JsonRequestBehavior.AllowGet);
         }
-
         [AllowAnonymous]
         public ActionResult Partial_CheckOut()
         {
@@ -163,112 +181,95 @@ namespace WebBanHangOnline.Controllers
             }
             return PartialView();
         }
-        //Định nghĩa GenerateOrderCode
-        private string GenerateOrderCode()
-        {
-            // Tạo mã đơn hàng ngẫu nhiên (ví dụ: "DH" + 4 số ngẫu nhiên)
-            var rd = new Random();
-            string code = "DH" + rd.Next(1000, 9999).ToString();
 
-            // Kiểm tra trùng lặp (nếu cần)
-            while (db.Orders.Any(x => x.Code == code))
-            {
-                code = "DH" + rd.Next(1000, 9999).ToString();
-            }
-
-            return code;
-        }
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
         public ActionResult CheckOut(OrderViewModel req)
         {
-            if (!ModelState.IsValid)
-                return Json(new { Success = false, msg = "Thông tin đơn hàng không hợp lệ." });
-
-            var cart = GetCart();
-            if (!cart.Items.Any())
-                return Json(new { Success = false, msg = "Giỏ hàng trống." });
-
-            using (var transaction = db.Database.BeginTransaction())
+            var code = new { Success = false, Code = -1, Url = "" };
+            if (ModelState.IsValid)
             {
-                try
+                ShoppingCart cart = (ShoppingCart)Session["Cart"];
+                if (cart != null)
                 {
-                    // 1. Khóa dòng (UPDLOCK) để tránh oversell
-                    var productsToUpdate = new List<Product>();
-                    foreach (var item in cart.Items)
+                    Order order = new Order();
+                    order.CustomerName = req.CustomerName;
+                    order.Phone = req.Phone;
+                    order.Address = req.Address;
+                    order.Email = req.Email;
+                    order.Status = 1;//chưa thanh toán / 2/đã thanh toán, 3/Hoàn thành, 4/hủy
+                    cart.Items.ForEach(x => order.OrderDetails.Add(new OrderDetail
                     {
-                        var sql = @"
-                    SELECT *
-                    FROM dbo.Products WITH (UPDLOCK, ROWLOCK)
-                    WHERE Id = @p0";
-                        var product = db.Products.SqlQuery(sql, item.ProductId).FirstOrDefault();
-
-                        if (product == null)
-                            throw new InvalidOperationException($"Sản phẩm Id={item.ProductId} không tồn tại.");
-
-                        if (product.Quantity < item.Quantity)
-                            throw new InvalidOperationException($"'{item.ProductName}' chỉ còn {product.Quantity} trong kho.");
-
-                        // Giảm tồn tạm thời
-                        product.Quantity -= item.Quantity;
-                        productsToUpdate.Add(product);
-                    }
-
-                    // 2. Tạo Order + OrderDetails
-                    var order = new Order
-                    {
-                        // Tự sinh mã đơn hàng, ví dụ: DH1234
-                        Code = GenerateOrderCode(),
-                        CustomerName = req.CustomerName,
-                        Phone = req.Phone,
-                        Address = req.Address,
-                        Email = req.Email,
-                        Status = 1, // Chưa thanh toán
-                        TotalAmount = cart.Items.Sum(x => x.Price * x.Quantity),
-                        Quantity = cart.Items.Sum(x => x.Quantity),
-                        TypePayment = req.TypePayment,
-                        CreatedDate = DateTime.Now,
-                        ModifiedDate = DateTime.Now,
-                        CustomerId = User.Identity.IsAuthenticated ? User.Identity.GetUserId() : null
-                    };
-                    foreach (var it in cart.Items)
-                    {
-                        order.OrderDetails.Add(new OrderDetail
-                        {
-                            ProductId = it.ProductId,
-                            Quantity = it.Quantity,
-                            Price = it.Price
-                        });
-                    }
+                        ProductId = x.ProductId,
+                        Quantity = x.Quantity,
+                        Price = x.Price
+                    }));
+                    order.TotalAmount = cart.Items.Sum(x => (x.Price * x.Quantity));
+                    order.TypePayment = req.TypePayment;
+                    order.CreatedDate = DateTime.Now;
+                    order.ModifiedDate = DateTime.Now;
+                    order.CreatedBy = req.Phone;
+                    if (User.Identity.IsAuthenticated)
+                        order.CustomerId = User.Identity.GetUserId();
+                    Random rd = new Random();
+                    order.Code = "DH" + rd.Next(0, 9) + rd.Next(0, 9) + rd.Next(0, 9) + rd.Next(0, 9);
+                    //order.E = req.CustomerName;
                     db.Orders.Add(order);
-
-                    // 3. Lưu Order và cập nhật kho
                     db.SaveChanges();
-                    transaction.Commit();
-
-                    // 4. Cập nhật lại Products và gửi realtime
-                    foreach (var p in productsToUpdate)
+                    //send mail cho khachs hang
+                    var strSanPham = "";
+                    var thanhtien = decimal.Zero;
+                    var TongTien = decimal.Zero;
+                    foreach (var sp in cart.Items)
                     {
-                        db.Entry(p).State = EntityState.Modified;
+                        strSanPham += "<tr>";
+                        strSanPham += "<td>" + sp.ProductName + "</td>";
+                        strSanPham += "<td>" + sp.Quantity + "</td>";
+                        strSanPham += "<td>" + WebBanHangOnline.Common.Common.FormatNumber(sp.TotalPrice, 0) + "</td>";
+                        strSanPham += "</tr>";
+                        thanhtien += sp.Price * sp.Quantity;
                     }
-                    db.SaveChanges();
-                    foreach (var p in productsToUpdate)
-                    {
-                        _hubContext.Clients.All.ReceiveStockUpdate(p.Id, p.Quantity);
-                    }
+                    TongTien = thanhtien;
+                    string contentCustomer = System.IO.File.ReadAllText(Server.MapPath("~/Content/templates/send2.html"));
+                    contentCustomer = contentCustomer.Replace("{{MaDon}}", order.Code);
+                    contentCustomer = contentCustomer.Replace("{{SanPham}}", strSanPham);
+                    contentCustomer = contentCustomer.Replace("{{NgayDat}}", DateTime.Now.ToString("dd/MM/yyyy"));
+                    contentCustomer = contentCustomer.Replace("{{TenKhachHang}}", order.CustomerName);
+                    contentCustomer = contentCustomer.Replace("{{Phone}}", order.Phone);
+                    contentCustomer = contentCustomer.Replace("{{Email}}", req.Email);
+                    contentCustomer = contentCustomer.Replace("{{DiaChiNhanHang}}", order.Address);
+                    contentCustomer = contentCustomer.Replace("{{ThanhTien}}", WebBanHangOnline.Common.Common.FormatNumber(thanhtien, 0));
+                    contentCustomer = contentCustomer.Replace("{{TongTien}}", WebBanHangOnline.Common.Common.FormatNumber(TongTien, 0));
+                    WebBanHangOnline.Common.Common.SendMail("ShopOnline", "Đơn hàng #" + order.Code, contentCustomer.ToString(), req.Email);
 
-                    // 5. Xóa giỏ và trả về
+                    string contentAdmin = System.IO.File.ReadAllText(Server.MapPath("~/Content/templates/send1.html"));
+                    contentAdmin = contentAdmin.Replace("{{MaDon}}", order.Code);
+                    contentAdmin = contentAdmin.Replace("{{SanPham}}", strSanPham);
+                    contentAdmin = contentAdmin.Replace("{{NgayDat}}", DateTime.Now.ToString("dd/MM/yyyy"));
+                    contentAdmin = contentAdmin.Replace("{{TenKhachHang}}", order.CustomerName);
+                    contentAdmin = contentAdmin.Replace("{{Phone}}", order.Phone);
+                    contentAdmin = contentAdmin.Replace("{{Email}}", req.Email);
+                    contentAdmin = contentAdmin.Replace("{{DiaChiNhanHang}}", order.Address);
+                    contentAdmin = contentAdmin.Replace("{{ThanhTien}}", WebBanHangOnline.Common.Common.FormatNumber(thanhtien, 0));
+                    contentAdmin = contentAdmin.Replace("{{TongTien}}", WebBanHangOnline.Common.Common.FormatNumber(TongTien, 0));
+                    WebBanHangOnline.Common.Common.SendMail("ShopOnline", "Đơn hàng mới #" + order.Code, contentAdmin.ToString(), ConfigurationManager.AppSettings["EmailAdmin"]);
                     cart.ClearCart();
-                    return Json(new { Success = true, msg = "Đặt hàng thành công!" });
-                }
-                catch (Exception ex)
-                {
-                    transaction.Rollback();
-                    return Json(new { Success = false, msg = ex.Message });
+                    code = new { Success = true, Code = req.TypePayment, Url = "" };
+                    //var url = "";
+                    if (req.TypePayment == 2)
+                    {
+                        var url = UrlPayment(req.TypePaymentVN, order.Code);
+                        code = new { Success = true, Code = req.TypePayment, Url = url };
+                    }
+
+                    //code = new { Success = true, Code = 1, Url = url };
+                    //return RedirectToAction("CheckOutSuccess");
                 }
             }
+            return Json(code);
         }
+
 
         [AllowAnonymous]
         [HttpPost]
@@ -309,11 +310,12 @@ namespace WebBanHangOnline.Controllers
             return Json(code);
         }
 
+
         [AllowAnonymous]
         [HttpPost]
         public ActionResult Update(int id, int quantity)
         {
-            var cart = GetCart();
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
             if (cart != null)
             {
                 cart.UpdateQuantity(id, quantity);
@@ -327,7 +329,8 @@ namespace WebBanHangOnline.Controllers
         public ActionResult Delete(int id)
         {
             var code = new { Success = false, msg = "", code = -1, Count = 0 };
-            var cart = GetCart();
+
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
             if (cart != null)
             {
                 var checkProduct = cart.Items.FirstOrDefault(x => x.ProductId == id);
@@ -340,11 +343,12 @@ namespace WebBanHangOnline.Controllers
             return Json(code);
         }
 
+
         [AllowAnonymous]
         [HttpPost]
         public ActionResult DeleteAll()
         {
-            var cart = GetCart();
+            ShoppingCart cart = (ShoppingCart)Session["Cart"];
             if (cart != null)
             {
                 cart.ClearCart();
@@ -353,22 +357,26 @@ namespace WebBanHangOnline.Controllers
             return Json(new { Success = false });
         }
 
-        #region Thanh toán VNPay
+
+
+        #region Thanh toán vnpay
         public string UrlPayment(int TypePaymentVN, string orderCode)
         {
             var urlPayment = "";
             var order = db.Orders.FirstOrDefault(x => x.Code == orderCode);
-            string vnp_Returnurl = ConfigurationManager.AppSettings["vnp_Returnurl"];
-            string vnp_Url = ConfigurationManager.AppSettings["vnp_Url"];
-            string vnp_TmnCode = ConfigurationManager.AppSettings["vnp_TmnCode"];
-            string vnp_HashSecret = ConfigurationManager.AppSettings["vnp_HashSecret"];
+            //Get Config Info
+            string vnp_Returnurl = ConfigurationManager.AppSettings["vnp_Returnurl"]; //URL nhan ket qua tra ve 
+            string vnp_Url = ConfigurationManager.AppSettings["vnp_Url"]; //URL thanh toan cua VNPAY 
+            string vnp_TmnCode = ConfigurationManager.AppSettings["vnp_TmnCode"]; //Ma định danh merchant kết nối (Terminal Id)
+            string vnp_HashSecret = ConfigurationManager.AppSettings["vnp_HashSecret"]; //Secret Key
 
+            //Build URL for VNPAY
             VnPayLibrary vnpay = new VnPayLibrary();
             var Price = (long)order.TotalAmount * 100;
             vnpay.AddRequestData("vnp_Version", VnPayLibrary.VERSION);
             vnpay.AddRequestData("vnp_Command", "pay");
             vnpay.AddRequestData("vnp_TmnCode", vnp_TmnCode);
-            vnpay.AddRequestData("vnp_Amount", Price.ToString());
+            vnpay.AddRequestData("vnp_Amount", Price.ToString()); //Số tiền thanh toán. Số tiền không mang các ký tự phân tách thập phân, phần nghìn, ký tự tiền tệ. Để gửi số tiền thanh toán là 100,000 VND (một trăm nghìn VNĐ) thì merchant cần nhân thêm 100 lần (khử phần thập phân), sau đó gửi sang VNPAY là: 10000000
             if (TypePaymentVN == 1)
             {
                 vnpay.AddRequestData("vnp_BankCode", "VNPAYQR");
@@ -386,12 +394,17 @@ namespace WebBanHangOnline.Controllers
             vnpay.AddRequestData("vnp_CurrCode", "VND");
             vnpay.AddRequestData("vnp_IpAddr", Utils.GetIpAddress());
             vnpay.AddRequestData("vnp_Locale", "vn");
-            vnpay.AddRequestData("vnp_OrderInfo", "Thanh toán đơn hàng: " + order.Code);
-            vnpay.AddRequestData("vnp_OrderType", "other");
+            vnpay.AddRequestData("vnp_OrderInfo", "Thanh toán đơn hàng :" + order.Code);
+            vnpay.AddRequestData("vnp_OrderType", "other"); //default value: other
+
             vnpay.AddRequestData("vnp_ReturnUrl", vnp_Returnurl);
-            vnpay.AddRequestData("vnp_TxnRef", order.Code);
+            vnpay.AddRequestData("vnp_TxnRef", order.Code); // Mã tham chiếu của giao dịch tại hệ thống của merchant. Mã này là duy nhất dùng để phân biệt các đơn hàng gửi sang VNPAY. Không được trùng lặp trong ngày
+
+            //Add Params of 2.1.0 Version
+            //Billing
 
             urlPayment = vnpay.CreateRequestUrl(vnp_Url, vnp_HashSecret);
+            //log.InfoFormat("VNPAY URL: {0}", paymentUrl);
             return urlPayment;
         }
         #endregion

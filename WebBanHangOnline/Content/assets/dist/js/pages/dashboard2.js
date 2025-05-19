@@ -1,23 +1,5 @@
 /* global Chart:false */
-$(function () {
-    var connection = $.hubConnection();
-    var hub = connection.createHubProxy('stockHub');
 
-    hub.on('ReceiveStockUpdate', function (productId, quantity) {
-        if (quantity <= 0) {
-            $('#buy-button-' + productId).prop('disabled', true);
-            alert('Sản phẩm đã hết hàng!');
-        }
-        // Cập nhật số lượng hiển thị trên giao diện (nếu có)
-        $('#quantity-' + productId).text(quantity);
-    });
-
-    connection.start().done(function () {
-        console.log('Connected to StockHub');
-    }).fail(function (e) {
-        console.log('Error connecting: ' + e);
-    });
-});
 $(function () {
   'use strict'
 
